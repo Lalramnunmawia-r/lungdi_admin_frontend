@@ -1,0 +1,195 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/*
+ * Light mode — same dense-operator register as .dark below, not a marketing
+ * "airy white" theme: hairline zinc borders, white cards on a faint zinc-50
+ * canvas, violet/rose stepped one shade darker than their dark-mode values
+ * (violet-600 #7c3aed / rose-600 #e11d48, not the -500s used on dark) since
+ * both need to double as TEXT colors here (active nav, status labels) and
+ * the -500 step under-contrasts against white. Every hex below was checked
+ * with a WCAG contrast calc against #ffffff before being picked; see the
+ * dark block's comment for why chart-1..5 collapse to one hue.
+ */
+:root {
+  --background: #fafafa;
+  --foreground: #18181b;
+  --card: #ffffff;
+  --card-foreground: #18181b;
+  --popover: #ffffff;
+  --popover-foreground: #18181b;
+  --primary: #7c3aed;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --accent: #f4f4f5;
+  --accent-foreground: #18181b;
+  --destructive: #e11d48;
+  --destructive-foreground: #ffffff;
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #7c3aed;
+  --chart-1: #7c3aed;
+  --chart-2: #7c3aed;
+  --chart-3: #7c3aed;
+  --chart-4: #7c3aed;
+  --chart-5: #7c3aed;
+  --radius: 0.625rem;
+  --sidebar: #f4f4f5;
+  --sidebar-foreground: #18181b;
+  --sidebar-primary: #7c3aed;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e4e4e7;
+  --sidebar-accent-foreground: #18181b;
+  --sidebar-border: #e4e4e7;
+  --sidebar-ring: #7c3aed;
+
+  --status-pending: #b45309;
+  --status-active: #047857;
+  --status-info: #0369a1;
+  --status-neutral: #475569;
+  --status-danger: #e11d48;
+}
+
+/*
+ * Lungdi Admin palette — deliberately NOT a copy of the mobile app's theme,
+ * and deliberately NOT a marketing-site look. This is a dense operator tool
+ * (Linear/Vercel-dashboard register): hairline borders over shadows, tight
+ * spacing, tabular/mono numerals, no gradient fills anywhere in the chrome —
+ * see timeseries-chart.tsx for the one legitimate exception (a chart area's
+ * fade-to-transparent fill, a data-viz technique, not branding).
+ *
+ * The app is a near-black canvas with ROSE as the friendly primary CTA
+ * ("Request Connect", "Edit profile"). Moderation is dense, high-volume,
+ * keyboard-driven work, so this inverts the two brand colors' ROLES rather
+ * than their hues: violet becomes primary/interactive (nav, links, selection,
+ * confirm), rose becomes destructive-only (ban, reject, danger counts). That
+ * keeps the brand recognizable while making the palette carry real semantic
+ * weight — on mobile rose never means "danger", here it always does. Violet
+ * is reserved for genuinely interactive/active elements; it is never applied
+ * decoratively (an icon, a stat value, a card accent with nothing to click).
+ *
+ * This is the dark palette; :root above is the light palette. Both are real,
+ * hand-picked values (not shadcn's placeholder grayscale) — switching is
+ * handled by next-themes toggling the `dark` class on <html>, see
+ * layout.tsx and components/theme-toggle.tsx.
+ */
+.dark {
+  --background: #08070c;
+  --foreground: #ffffff;
+  --card: #16151c;
+  --card-foreground: #ffffff;
+  --popover: #1c1b22;
+  --popover-foreground: #ffffff;
+  --primary: #8b5cf6;
+  --primary-foreground: #ffffff;
+  --secondary: #1c1b22;
+  --secondary-foreground: #ffffff;
+  --muted: #1c1b22;
+  --muted-foreground: #9ca0a8;
+  --accent: #1c1b22;
+  --accent-foreground: #ffffff;
+  --destructive: #ee3a5c;
+  --destructive-foreground: #ffffff;
+  --border: #2a2833;
+  --input: #2a2833;
+  --ring: #8b5cf6;
+  /* Every chart in this app plots exactly one series at a time (a metric
+     selector, not overlaid lines) or is ordinal (the funnel, encoded by bar
+     WIDTH, not a color ramp) — so there is no multi-series categorical
+     palette to validate here. --chart-1 is the single validated hue
+     (dataviz skill: passes lightness/chroma/contrast solo on the dark
+     surface); 2-5 are set equal to it rather than left as shadcn's unused
+     grayscale defaults, so nothing that reads --chart-2..5 by accident
+     renders an unvalidated color. */
+  --chart-1: #8b5cf6;
+  --chart-2: #8b5cf6;
+  --chart-3: #8b5cf6;
+  --chart-4: #8b5cf6;
+  --chart-5: #8b5cf6;
+  --sidebar: #0c0b11;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #8b5cf6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1c1b22;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #2a2833;
+  --sidebar-ring: #8b5cf6;
+
+  /* Status semantics used across Moderation/Users/Server Health — not part of
+     shadcn's base token set, added for this app's status pills and tiles. */
+  --status-pending: #f59e0b;
+  --status-active: #10b981;
+  --status-info: #38bdf8;
+  --status-neutral: #64748b;
+  --status-danger: #ee3a5c;
+}
+
+@theme inline {
+  --color-status-pending: var(--status-pending);
+  --color-status-active: var(--status-active);
+  --color-status-info: var(--status-info);
+  --color-status-neutral: var(--status-neutral);
+  --color-status-danger: var(--status-danger);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
