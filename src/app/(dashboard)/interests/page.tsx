@@ -18,6 +18,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -29,6 +36,7 @@ export default function InterestsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
+  const [type, setType] = useState<"hobby" | "interest">("interest");
   const queryClient = useQueryClient();
 
   const { data: interests, isLoading } = useQuery({
@@ -38,13 +46,18 @@ export default function InterestsPage() {
 
   const createMutation = useMutation({
     mutationFn: () =>
-      api.post("/admin/interests", { name, category: category || undefined }),
+      api.post("/admin/interests", {
+        name,
+        type,
+        category: category || undefined,
+      }),
     onSuccess: () => {
       toast.success("Interest added");
       void queryClient.invalidateQueries({ queryKey: ["interests"] });
       setDialogOpen(false);
       setName("");
       setCategory("");
+      setType("interest");
     },
     onError: (error) => {
       toast.error(error instanceof ApiError ? error.message : "Failed to add");
@@ -89,6 +102,7 @@ export default function InterestsPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Profiles</TableHead>
               <TableHead className="w-10" />
@@ -97,14 +111,14 @@ export default function InterestsPage() {
           <TableBody>
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
+                <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
                   Loading…
                 </TableCell>
               </TableRow>
             )}
             {!isLoading && interests?.length === 0 && (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
+                <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
                   No interests yet.
                 </TableCell>
               </TableRow>
@@ -112,6 +126,7 @@ export default function InterestsPage() {
             {interests?.map((interest) => (
               <TableRow key={interest.id}>
                 <TableCell className="font-medium">{interest.name}</TableCell>
+                <TableCell className="capitalize">{interest.type}</TableCell>
                 <TableCell className="text-muted-foreground">
                   {interest.category ?? "—"}
                 </TableCell>
@@ -156,6 +171,18 @@ export default function InterestsPage() {
                 required
                 maxLength={50}
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="interest-type">Type</Label>
+              <Select value={type} onValueChange={(value) => setType(value as "hobby" | "interest")}>
+                <SelectTrigger id="interest-type">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="interest">Interest</SelectItem>
+                  <SelectItem value="hobby">Hobby</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="interest-category">Category (optional)</Label>

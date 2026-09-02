@@ -232,6 +232,7 @@ export interface AdminInterest {
   id: string;
   name: string;
   category: string | null;
+  type: "hobby" | "interest";
   userCount: number;
 }
 
