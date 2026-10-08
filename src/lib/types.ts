@@ -236,6 +236,38 @@ export interface AdminInterest {
   userCount: number;
 }
 
+export interface AdminDesignation {
+  id: string;
+  name: string;
+  active: boolean;
+  userCount: number;
+}
+
+export interface CreateDesignationInput {
+  name: string;
+}
+
+export interface UpdateDesignationInput {
+  name?: string;
+  active?: boolean;
+}
+
+export interface AdminRelationshipStatus {
+  id: string;
+  name: string;
+  active: boolean;
+  userCount: number;
+}
+
+export interface CreateRelationshipStatusInput {
+  name: string;
+}
+
+export interface UpdateRelationshipStatusInput {
+  name?: string;
+  active?: boolean;
+}
+
 // ---- Broadcast ----
 
 export interface AdminAudienceFilter {
