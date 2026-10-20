@@ -15,7 +15,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { StatusDot } from "@/components/status-pill";
 import { formatPaise } from "@/lib/format";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlanSheet } from "@/components/plans/plan-sheet";
+import { RazorpayPlansTab } from "@/components/plans/razorpay-plans-tab";
+import { IapProductsTab } from "@/components/plans/iap-products-tab";
 import { PaymentProvidersCard } from "@/components/plans/payment-providers-card";
 
 export default function PlansPage() {
@@ -42,14 +45,27 @@ export default function PlansPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Plans</h1>
-          <p className="text-sm text-muted-foreground">Pricing and provider identifiers</p>
+          <p className="text-sm text-muted-foreground">
+            Plans, Razorpay plans and Apple IAP products
+          </p>
         </div>
-        <Button size="sm" onClick={openCreate}>
-          New plan
-        </Button>
       </div>
 
       <PaymentProvidersCard />
+
+      <Tabs defaultValue="plans" className="space-y-3">
+        <TabsList>
+          <TabsTrigger value="plans">Plans</TabsTrigger>
+          <TabsTrigger value="razorpay">Razorpay</TabsTrigger>
+          <TabsTrigger value="iap">Apple IAP</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="plans" className="space-y-3">
+          <div className="flex justify-end">
+            <Button size="sm" onClick={openCreate}>
+              New plan
+            </Button>
+          </div>
 
       <div className="rounded-lg border border-border bg-card">
         <Table>
@@ -86,13 +102,13 @@ export default function PlansPage() {
               >
                 <TableCell className="font-medium">{plan.name}</TableCell>
                 <TableCell className="font-mono tabular-nums">
-                  {formatPaise(plan.price3Month)}
+                  {formatPaise(plan.price3Month, plan.currency)}
                 </TableCell>
                 <TableCell className="font-mono tabular-nums">
-                  {formatPaise(plan.price6Month)}
+                  {formatPaise(plan.price6Month, plan.currency)}
                 </TableCell>
                 <TableCell className="font-mono tabular-nums">
-                  {formatPaise(plan.price12Month)}
+                  {formatPaise(plan.price12Month, plan.currency)}
                 </TableCell>
                 <TableCell className="font-mono">{plan.currency}</TableCell>
                 <TableCell>
@@ -106,6 +122,16 @@ export default function PlansPage() {
           </TableBody>
         </Table>
       </div>
+        </TabsContent>
+
+        <TabsContent value="razorpay">
+          <RazorpayPlansTab plans={plans ?? []} />
+        </TabsContent>
+
+        <TabsContent value="iap">
+          <IapProductsTab plans={plans ?? []} />
+        </TabsContent>
+      </Tabs>
 
       <PlanSheet plan={selectedPlan} open={sheetOpen} onOpenChange={setSheetOpen} />
     </div>

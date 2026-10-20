@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { AdminTimeseriesPoint } from "@/lib/types";
+import type { AdminRevenuePoint, AdminTimeseriesPoint } from "@/lib/types";
 
 // Single series → one hue, no legend box (a legend restates the title when
 // there's only one color to key). --chart-1 is the one hue validated by the
@@ -18,14 +18,20 @@ import type { AdminTimeseriesPoint } from "@/lib/types";
 // as an unvalidated multi-hue set.
 const SERIES_COLOR = "var(--chart-1)";
 
+type FormatValue = (value: number) => string;
+
+const formatCount: FormatValue = (value) => value.toLocaleString();
+
 function CustomTooltip({
   active,
   payload,
   label,
+  formatValue,
 }: {
   active?: boolean;
   payload?: { value: number }[];
   label?: string;
+  formatValue: FormatValue;
 }) {
   if (!active || !payload?.length) return null;
   return (
@@ -34,13 +40,27 @@ function CustomTooltip({
         {label ? new Date(label).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : ""}
       </div>
       <div className="mt-0.5 font-semibold tabular-nums text-foreground">
-        {payload[0].value.toLocaleString()}
+        {formatValue(payload[0].value)}
       </div>
     </div>
   );
 }
 
-export function TimeseriesChart({ data }: { data: AdminTimeseriesPoint[] }) {
+/**
+ * `dataKey`/`formatValue` default to the count series every existing metric
+ * uses; the revenue series passes `amount` and a currency formatter.
+ */
+export function TimeseriesChart({
+  data,
+  dataKey = "count",
+  formatValue = formatCount,
+  yAxisWidth = 36,
+}: {
+  data: (AdminTimeseriesPoint | AdminRevenuePoint)[];
+  dataKey?: "count" | "amount";
+  formatValue?: FormatValue;
+  yAxisWidth?: number;
+}) {
   return (
     <ResponsiveContainer width="100%" height={220}>
       <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -71,13 +91,14 @@ export function TimeseriesChart({ data }: { data: AdminTimeseriesPoint[] }) {
           tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
           axisLine={false}
           tickLine={false}
-          width={36}
+          width={yAxisWidth}
           allowDecimals={false}
+          tickFormatter={formatValue}
         />
-        <Tooltip content={<CustomTooltip />} cursor={{ stroke: "var(--border)" }} />
+        <Tooltip content={<CustomTooltip formatValue={formatValue} />} cursor={{ stroke: "var(--border)" }} />
         <Area
           type="monotone"
-          dataKey="count"
+          dataKey={dataKey}
           stroke={SERIES_COLOR}
           strokeWidth={2}
           fill="url(#ts-fill)"

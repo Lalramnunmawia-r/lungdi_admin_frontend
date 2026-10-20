@@ -6,6 +6,8 @@ import { api } from "@/lib/api-client";
 import type {
   AdminFunnel,
   AdminOverview,
+  AdminPaymentsSummary,
+  AdminRevenuePoint,
   AdminTimeseriesPoint,
   TimeseriesMetric,
 } from "@/lib/types";
@@ -21,29 +23,45 @@ import {
 } from "@/components/ui/select";
 import { formatPaise } from "@/lib/format";
 
-const METRIC_OPTIONS: { value: TimeseriesMetric; label: string }[] = [
+// "revenue" is not a /admin/metrics series — it comes from the payment ledger.
+type DashboardMetric = TimeseriesMetric | "revenue";
+
+const METRIC_OPTIONS: { value: DashboardMetric; label: string }[] = [
   { value: "signups", label: "Signups" },
   { value: "logins", label: "Logins" },
   { value: "messages", label: "Messages" },
   { value: "newSubscriptions", label: "New subscriptions" },
+  { value: "revenue", label: "Revenue" },
 ];
 
 export default function DashboardPage() {
-  const [metric, setMetric] = useState<TimeseriesMetric>("signups");
+  const [metric, setMetric] = useState<DashboardMetric>("signups");
 
   const { data: overview } = useQuery({
     queryKey: ["metrics", "overview"],
     queryFn: () => api.get<AdminOverview>("/admin/metrics/overview", { range: 30 }),
   });
 
-  const { data: series } = useQuery({
+  const { data: series } = useQuery<(AdminTimeseriesPoint | AdminRevenuePoint)[]>({
     queryKey: ["metrics", "timeseries", metric],
     queryFn: () =>
-      api.get<AdminTimeseriesPoint[]>("/admin/metrics/timeseries", {
-        metric,
-        range: 30,
-      }),
+      metric === "revenue"
+        ? api.get<AdminRevenuePoint[]>("/admin/payments/revenue-timeseries", {
+            range: 30,
+          })
+        : api.get<AdminTimeseriesPoint[]>("/admin/metrics/timeseries", {
+            metric,
+            range: 30,
+          }),
   });
+
+  const { data: payments } = useQuery({
+    queryKey: ["payments", "summary", "30"],
+    queryFn: () =>
+      api.get<AdminPaymentsSummary>("/admin/payments/summary", { range: 30 }),
+  });
+  const revenue =
+    payments?.revenue.find((r) => r.currency === "INR") ?? payments?.revenue[0];
 
   const { data: funnel } = useQuery({
     queryKey: ["metrics", "funnel"],
@@ -81,6 +99,16 @@ export default function DashboardPage() {
         />
         <Stat label="Logins (30d)" value={overview?.loginsInRange} />
         <Stat
+          label="Revenue (30d)"
+          value={payments ? formatPaise(revenue?.net ?? 0, revenue?.currency ?? "INR") : undefined}
+          hint="Collected, net of refunds"
+        />
+        <Stat
+          label="Failed payments (30d)"
+          value={payments?.failedCount}
+          tone="danger"
+        />
+        <Stat
           label="Est. MRR"
           value={overview ? formatPaise(overview.estimatedMrrPaise) : undefined}
           hint="Estimated, not collected"
@@ -93,7 +121,7 @@ export default function DashboardPage() {
             <h2 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
               {METRIC_OPTIONS.find((m) => m.value === metric)?.label} — last 30 days
             </h2>
-            <Select value={metric} onValueChange={(v) => setMetric(v as TimeseriesMetric)}>
+            <Select value={metric} onValueChange={(v) => setMetric(v as DashboardMetric)}>
               <SelectTrigger size="sm" className="w-40">
                 <SelectValue />
               </SelectTrigger>
@@ -107,7 +135,16 @@ export default function DashboardPage() {
             </Select>
           </div>
           {series ? (
-            <TimeseriesChart data={series} />
+            metric === "revenue" ? (
+              <TimeseriesChart
+                data={series}
+                dataKey="amount"
+                formatValue={(paise) => formatPaise(paise)}
+                yAxisWidth={64}
+              />
+            ) : (
+              <TimeseriesChart data={series} />
+            )
           ) : (
             <div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">
               Loading…

@@ -87,6 +87,7 @@ export interface AdminUserDetail {
   dateOfBirth: string | null;
   designation: string | null;
   bio: string | null;
+  lookingFor: string | null;
   profilePictureUrl: string | null;
   verificationStatus: VerificationStatus;
   profileComplete: boolean;
@@ -192,12 +193,6 @@ export interface AdminPlan {
   currency: string;
   features: string[];
   active: boolean;
-  razorpayPlanId3Month: string | null;
-  razorpayPlanId6Month: string | null;
-  razorpayPlanId12Month: string | null;
-  appleProductId3Month: string | null;
-  appleProductId6Month: string | null;
-  appleProductId12Month: string | null;
   createdAt: string;
 }
 
@@ -208,15 +203,58 @@ export interface CreatePlanInput {
   price12Month: number;
   currency?: string;
   features?: string[];
-  razorpayPlanId3Month?: string;
-  razorpayPlanId6Month?: string;
-  razorpayPlanId12Month?: string;
-  appleProductId3Month?: string;
-  appleProductId6Month?: string;
-  appleProductId12Month?: string;
 }
 
 export type UpdatePlanInput = Partial<CreatePlanInput> & { active?: boolean };
+
+export type ProviderBillingCycle = "3_month" | "6_month" | "12_month";
+
+export interface AdminRazorpayPlan {
+  id: string;
+  planId: string;
+  planName: string;
+  billingCycle: ProviderBillingCycle;
+  razorpayPlanId: string;
+  price: number;
+  currency: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface CreateRazorpayPlanInput {
+  planId: string;
+  billingCycle: ProviderBillingCycle;
+  price: number;
+  currency?: string;
+  /** Omit to have the backend create the plan on Razorpay. */
+  razorpayPlanId?: string;
+}
+
+export interface AdminIapProduct {
+  id: string;
+  planId: string;
+  planName: string;
+  billingCycle: ProviderBillingCycle;
+  appleProductId: string;
+  price: number;
+  currency: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface CreateIapProductInput {
+  planId: string;
+  billingCycle: ProviderBillingCycle;
+  appleProductId: string;
+  price: number;
+  currency?: string;
+}
+
+export type UpdateIapProductInput = {
+  price?: number;
+  currency?: string;
+  active?: boolean;
+};
 
 // ---- Payment provider settings (Razorpay/Apple IAP kill-switch) ----
 
@@ -298,4 +336,60 @@ export interface AdminAuditLogEntry {
 export interface AdminAuditLogListResponse {
   entries: AdminAuditLogEntry[];
   nextCursor: string | null;
+}
+
+// ---- Payments (ledger) ----
+
+export type PaymentStatus = "succeeded" | "failed" | "refunded";
+export type PaymentProvider = "razorpay" | "apple";
+
+export interface AdminPayment {
+  id: string;
+  userId: string | null;
+  userName: string | null;
+  userPhone: string | null;
+  planName: string | null;
+  billingCycle: string | null;
+  provider: PaymentProvider;
+  status: PaymentStatus;
+  /** Minor units (paise). Null when the provider gave no amount. */
+  amount: number | null;
+  currency: string | null;
+  providerPaymentId: string;
+  failureCode: string | null;
+  failureReason: string | null;
+  environment: string | null;
+  occurredAt: string;
+}
+
+export interface AdminPaymentsListResponse {
+  payments: AdminPayment[];
+  nextCursor: string | null;
+}
+
+export interface AdminPaymentsSummary {
+  revenue: {
+    currency: string;
+    collected: number;
+    refunded: number;
+    net: number;
+  }[];
+  byProvider: {
+    provider: PaymentProvider;
+    currency: string;
+    net: number;
+    succeeded: number;
+    failed: number;
+  }[];
+  succeededCount: number;
+  failedCount: number;
+  refundedCount: number;
+  /** 0–1, null when there were no attempts. */
+  successRate: number | null;
+}
+
+export interface AdminRevenuePoint {
+  date: string;
+  /** Net revenue that day, minor units. */
+  amount: number;
 }

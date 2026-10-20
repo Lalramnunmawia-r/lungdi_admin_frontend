@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -37,9 +38,8 @@ const planSchema = z.object({
   price12Month: z.number().int().min(0),
   currency: z.string().max(3).min(1),
   active: z.enum(["true", "false"]),
-  appleProductId3Month: z.string(),
-  appleProductId6Month: z.string(),
-  appleProductId12Month: z.string(),
+  // One bullet per line; split back into string[] on submit.
+  features: z.string(),
 });
 type PlanForm = z.infer<typeof planSchema>;
 
@@ -51,9 +51,7 @@ function emptyForm(): PlanForm {
     price12Month: 39900,
     currency: "INR",
     active: "true",
-    appleProductId3Month: "",
-    appleProductId6Month: "",
-    appleProductId12Month: "",
+    features: "",
   };
 }
 
@@ -65,17 +63,21 @@ function toForm(plan: AdminPlan): PlanForm {
     price12Month: plan.price12Month,
     currency: plan.currency,
     active: plan.active ? "true" : "false",
-    appleProductId3Month: plan.appleProductId3Month ?? "",
-    appleProductId6Month: plan.appleProductId6Month ?? "",
-    appleProductId12Month: plan.appleProductId12Month ?? "",
+    features: plan.features.join("\n"),
   };
 }
 
-/** undefined clears an optional string field server-side rather than sending "". */
-function orUndefined(value: string): string | undefined {
-  return value.trim() === "" ? undefined : value.trim();
+function parseFeatures(text: string): string[] {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
+/**
+ * The plan itself — name, display prices, marketing features, active.
+ * Razorpay plans and Apple IAP products are managed in their own tabs.
+ */
 export function PlanSheet({
   plan,
   open,
@@ -106,14 +108,8 @@ export function PlanSheet({
         price6Month: values.price6Month,
         price12Month: values.price12Month,
         currency: values.currency,
+        features: parseFeatures(values.features),
         ...(isEdit ? { active: values.active === "true" } : {}),
-        // Razorpay ids are never submitted from here — omitting the key is
-        // exactly what tells the backend to auto-create (on create) or leave
-        // an already-provisioned cycle alone (on update). See the read-only
-        // display below.
-        appleProductId3Month: orUndefined(values.appleProductId3Month),
-        appleProductId6Month: orUndefined(values.appleProductId6Month),
-        appleProductId12Month: orUndefined(values.appleProductId12Month),
       };
       return isEdit
         ? api.patch(`/admin/plans/${plan.id}`, payload)
@@ -159,6 +155,10 @@ export function PlanSheet({
               <Input id="price12Month" type="number" className="font-mono" {...form.register("price12Month", { valueAsNumber: true })} />
             </div>
           </div>
+          <p className="-mt-2 text-xs text-muted-foreground">
+            Display prices shown in the app. What Razorpay and Apple actually
+            charge is set per provider in the Razorpay and Apple IAP tabs.
+          </p>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -187,48 +187,15 @@ export function PlanSheet({
             )}
           </div>
 
-          {isEdit && (
-            <div className="space-y-1.5 border-t border-border pt-4">
-              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Razorpay plan IDs
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Created automatically on Razorpay — read-only.
-              </p>
-              <div className="grid grid-cols-3 gap-3 pt-1.5">
-                {[
-                  plan.razorpayPlanId3Month,
-                  plan.razorpayPlanId6Month,
-                  plan.razorpayPlanId12Month,
-                ].map((id, i) => (
-                  <div
-                    key={i}
-                    className="truncate rounded-lg border border-border bg-muted/40 px-2.5 py-2 font-mono text-xs text-muted-foreground"
-                    title={id ?? undefined}
-                  >
-                    {id ?? "Not yet created"}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {isEdit && (
-            <div className="space-y-1.5">
-              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Apple product IDs
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Not auto-created — set these after creating the matching
-                subscription product in App Store Connect.
-              </p>
-              <div className="grid grid-cols-3 gap-3 pt-1.5">
-                <Input placeholder="3-month" className="font-mono text-xs" {...form.register("appleProductId3Month")} />
-                <Input placeholder="6-month" className="font-mono text-xs" {...form.register("appleProductId6Month")} />
-                <Input placeholder="12-month" className="font-mono text-xs" {...form.register("appleProductId12Month")} />
-              </div>
-            </div>
-          )}
+          <div className="space-y-1.5">
+            <Label htmlFor="features">Features</Label>
+            <Textarea
+              id="features"
+              rows={6}
+              placeholder="One bullet per line"
+              {...form.register("features")}
+            />
+          </div>
 
           <Button type="submit" className="w-full" disabled={mutation.isPending}>
             {mutation.isPending && <Loader2 className="size-4 animate-spin" />}

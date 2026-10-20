@@ -22,6 +22,7 @@ import type { AdminUserDetail } from "@/lib/types";
 import { formatDate } from "@/lib/format";
 import { Stat, StatRowGroup } from "@/components/stat-row";
 import { SuspendBanDialog } from "./suspend-ban-dialog";
+import { UserPayments } from "./user-payments";
 
 function reasonPrompt(actionLabel: string): string | null {
   const reason = window.prompt(`Reason for ${actionLabel} (required, shown in the audit log):`);
@@ -151,6 +152,13 @@ export function UserDrawer({
               </div>
             )}
 
+            {user.lookingFor && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Looking for</p>
+                <p className="mt-1 text-sm">{user.lookingFor}</p>
+              </div>
+            )}
+
             <Separator />
 
             <div>
@@ -228,6 +236,8 @@ export function UserDrawer({
                 </div>
               </div>
             )}
+
+            <UserPayments userId={user.id} />
 
             <Separator />
 

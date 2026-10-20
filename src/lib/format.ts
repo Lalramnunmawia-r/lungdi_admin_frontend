@@ -36,12 +36,17 @@ export function formatBytes(bytes: number | null): string {
   return `${value.toFixed(1)} ${units[unitIndex]}`;
 }
 
-export function formatPaise(paise: number): string {
+export function formatPaise(paise: number, currency = "INR"): string {
   return new Intl.NumberFormat(undefined, {
     style: "currency",
-    currency: "INR",
+    currency,
     maximumFractionDigits: 0,
   }).format(paise / 100);
+}
+
+/** Ledger amounts are nullable (a failure can carry none). */
+export function formatAmount(amount: number | null, currency: string | null): string {
+  return amount === null ? "—" : formatPaise(amount, currency ?? "INR");
 }
 
 export function formatDuration(seconds: number): string {

@@ -1,5 +1,10 @@
 import { cn } from "@/lib/utils";
-import type { AccountStatus, ReportStatus, VerificationStatus } from "@/lib/types";
+import type {
+  AccountStatus,
+  PaymentStatus,
+  ReportStatus,
+  VerificationStatus,
+} from "@/lib/types";
 
 // Same status → color mapping as before; only the rendering changed (a
 // colored-background pill read as another "AI template" tell). A small dot
@@ -27,6 +32,12 @@ const REPORT_STATUS_DOT: Record<ReportStatus, string> = {
   dismissed: "bg-status-neutral",
 };
 
+const PAYMENT_STATUS_DOT: Record<PaymentStatus, string> = {
+  succeeded: "bg-status-active",
+  failed: "bg-status-danger",
+  refunded: "bg-status-pending",
+};
+
 export function StatusDot({ dotClassName, label }: { dotClassName: string; label: string }) {
   return (
     <span className="inline-flex items-center gap-2 text-sm text-muted-foreground capitalize">
@@ -46,4 +57,8 @@ export function VerificationStatusPill({ status }: { status: VerificationStatus 
 
 export function ReportStatusPill({ status }: { status: ReportStatus }) {
   return <StatusDot dotClassName={REPORT_STATUS_DOT[status]} label={status} />;
+}
+
+export function PaymentStatusPill({ status }: { status: PaymentStatus }) {
+  return <StatusDot dotClassName={PAYMENT_STATUS_DOT[status]} label={status} />;
 }
