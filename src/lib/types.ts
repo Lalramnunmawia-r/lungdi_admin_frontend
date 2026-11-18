@@ -269,9 +269,96 @@ export interface AdminPaymentProviderSetting {
 export interface AdminInterest {
   id: string;
   name: string;
+  // Legacy text grouping; follows the category name when categoryId is set.
   category: string | null;
+  categoryId: string | null;
   type: "hobby" | "interest";
   userCount: number;
+}
+
+// ---- Interest categories ("What are you into") ----
+
+export interface AdminInterestCategory {
+  id: string;
+  nameEn: string;
+  nameMz: string | null;
+  sortOrder: number;
+  active: boolean;
+  interestCount: number;
+}
+
+export interface CreateInterestCategoryInput {
+  nameEn: string;
+  nameMz?: string;
+  sortOrder?: number;
+}
+
+export interface UpdateInterestCategoryInput {
+  nameEn?: string;
+  nameMz?: string | null;
+  sortOrder?: number;
+  active?: boolean;
+}
+
+// ---- Profile fields (profile questions + options) ----
+
+export type ProfileFieldSection =
+  | "appearance"
+  | "looking_for"
+  | "education"
+  | "lifestyle"
+  | "into"
+  | "social"
+  | "church"
+  | "about";
+
+export interface AdminProfileFieldOption {
+  id: string;
+  labelEn: string;
+  labelMz: string | null;
+  sortOrder: number;
+  active: boolean;
+  userCount: number;
+}
+
+export interface AdminProfileField {
+  id: string;
+  key: string;
+  labelEn: string;
+  labelMz: string | null;
+  section: ProfileFieldSection;
+  multiSelect: boolean;
+  userCanHide: boolean;
+  sortOrder: number;
+  active: boolean;
+  options: AdminProfileFieldOption[];
+}
+
+export interface CreateProfileFieldInput {
+  key: string;
+  labelEn: string;
+  labelMz?: string;
+  section: ProfileFieldSection;
+  multiSelect?: boolean;
+  userCanHide?: boolean;
+  sortOrder?: number;
+}
+
+export interface UpdateProfileFieldInput {
+  labelEn?: string;
+  labelMz?: string | null;
+  section?: ProfileFieldSection;
+  multiSelect?: boolean;
+  userCanHide?: boolean;
+  sortOrder?: number;
+  active?: boolean;
+}
+
+export interface ProfileFieldOptionInput {
+  labelEn?: string;
+  labelMz?: string | null;
+  sortOrder?: number;
+  active?: boolean;
 }
 
 export interface AdminDesignation {

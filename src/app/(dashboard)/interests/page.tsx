@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, Trash2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api-client";
-import type { AdminInterest } from "@/lib/types";
+import type { AdminInterest, AdminInterestCategory } from "@/lib/types";
 import {
   Table,
   TableBody,
@@ -32,11 +32,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+// Select values must be strings; these stand in for "no category" / "all".
+const NONE = "__none__";
+const ALL = "__all__";
+
 export default function InterestsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState("");
-  const [category, setCategory] = useState("");
+  const [categoryId, setCategoryId] = useState<string>(NONE);
   const [type, setType] = useState<"hobby" | "interest">("interest");
+  const [filter, setFilter] = useState<string>(ALL);
   const queryClient = useQueryClient();
 
   const { data: interests, isLoading } = useQuery({
@@ -44,19 +49,34 @@ export default function InterestsPage() {
     queryFn: () => api.get<AdminInterest[]>("/admin/interests"),
   });
 
+  const { data: categories } = useQuery({
+    queryKey: ["interest-categories"],
+    queryFn: () => api.get<AdminInterestCategory[]>("/admin/interest-categories"),
+  });
+
+  const categoryName = (id: string | null) =>
+    id === null || id === NONE
+      ? "No category"
+      : (categories?.find((c) => c.id === id)?.nameEn ?? "Unknown");
+
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ["interests"] });
+    // Item counts on the categories page change too.
+    void queryClient.invalidateQueries({ queryKey: ["interest-categories"] });
+  };
+
   const createMutation = useMutation({
     mutationFn: () =>
       api.post("/admin/interests", {
-        name,
+        name: name.trim(),
         type,
-        category: category || undefined,
+        categoryId: categoryId === NONE ? undefined : categoryId,
       }),
     onSuccess: () => {
       toast.success("Interest added");
-      void queryClient.invalidateQueries({ queryKey: ["interests"] });
+      invalidate();
       setDialogOpen(false);
       setName("");
-      setCategory("");
       setType("interest");
     },
     onError: (error) => {
@@ -64,11 +84,23 @@ export default function InterestsPage() {
     },
   });
 
+  const moveMutation = useMutation({
+    mutationFn: ({ id, categoryId }: { id: string; categoryId: string | null }) =>
+      api.patch(`/admin/interests/${id}`, { categoryId }),
+    onSuccess: () => {
+      toast.success("Category changed");
+      invalidate();
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Update failed");
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/admin/interests/${id}`),
     onSuccess: () => {
       toast.success("Interest deleted");
-      void queryClient.invalidateQueries({ queryKey: ["interests"] });
+      invalidate();
     },
     onError: (error) => {
       toast.error(error instanceof ApiError ? error.message : "Delete failed");
@@ -85,16 +117,58 @@ export default function InterestsPage() {
     }
   }
 
+  function openCreate() {
+    // Pre-select the category being viewed, so adding items to one is quick.
+    setCategoryId(filter === ALL ? NONE : filter);
+    setDialogOpen(true);
+  }
+
+  const visible = (interests ?? []).filter((interest) =>
+    filter === ALL
+      ? true
+      : filter === NONE
+        ? interest.categoryId === null
+        : interest.categoryId === filter,
+  );
+
+  const categorySelectItems = (
+    <>
+      <SelectItem value={NONE}>No category</SelectItem>
+      {categories?.map((category) => (
+        <SelectItem key={category.id} value={category.id}>
+          {category.nameEn}
+          {!category.active && " (inactive)"}
+        </SelectItem>
+      ))}
+    </>
+  );
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Interests</h1>
-          <p className="text-sm text-muted-foreground">The onboarding interest taxonomy</p>
+          <p className="text-sm text-muted-foreground">
+            The items users pick under &ldquo;What are you into&rdquo;. Manage the
+            groups on Interest Categories.
+          </p>
         </div>
-        <Button size="sm" onClick={() => setDialogOpen(true)}>
-          New interest
-        </Button>
+        <div className="flex items-center gap-2">
+          <Select value={filter} onValueChange={(v) => v && setFilter(v)}>
+            <SelectTrigger size="sm" className="w-48">
+              <SelectValue>
+                {(v: string) => (v === ALL ? "All categories" : categoryName(v))}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>All categories</SelectItem>
+              {categorySelectItems}
+            </SelectContent>
+          </Select>
+          <Button size="sm" onClick={openCreate}>
+            New interest
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-lg border border-border bg-card">
@@ -116,19 +190,35 @@ export default function InterestsPage() {
                 </TableCell>
               </TableRow>
             )}
-            {!isLoading && interests?.length === 0 && (
+            {!isLoading && visible.length === 0 && (
               <TableRow>
                 <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
-                  No interests yet.
+                  No interests here yet.
                 </TableCell>
               </TableRow>
             )}
-            {interests?.map((interest) => (
+            {visible.map((interest) => (
               <TableRow key={interest.id}>
                 <TableCell className="font-medium">{interest.name}</TableCell>
                 <TableCell className="capitalize">{interest.type}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {interest.category ?? "—"}
+                <TableCell>
+                  <Select
+                    value={interest.categoryId ?? NONE}
+                    onValueChange={(v) =>
+                      v &&
+                      v !== (interest.categoryId ?? NONE) &&
+                      moveMutation.mutate({
+                        id: interest.id,
+                        categoryId: v === NONE ? null : v,
+                      })
+                    }
+                    disabled={moveMutation.isPending}
+                  >
+                    <SelectTrigger size="sm" className="w-48">
+                      <SelectValue>{(v: string) => categoryName(v)}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>{categorySelectItems}</SelectContent>
+                  </Select>
                 </TableCell>
                 <TableCell className="font-mono tabular-nums">{interest.userCount}</TableCell>
                 <TableCell>
@@ -167,10 +257,20 @@ export default function InterestsPage() {
                 id="interest-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                placeholder="Mizo food"
                 autoFocus
                 required
                 maxLength={50}
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="interest-category">Category</Label>
+              <Select value={categoryId} onValueChange={(v) => v && setCategoryId(v)}>
+                <SelectTrigger id="interest-category" className="w-full">
+                  <SelectValue>{(v: string) => categoryName(v)}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>{categorySelectItems}</SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="interest-type">Type</Label>
@@ -183,16 +283,9 @@ export default function InterestsPage() {
                   <SelectItem value="hobby">Hobby</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="interest-category">Category (optional)</Label>
-              <Input
-                id="interest-category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                placeholder="Hobbies"
-                maxLength={50}
-              />
+              <p className="text-xs text-muted-foreground">
+                Only used for matching and older app versions; users see the category.
+              </p>
             </div>
             <DialogFooter>
               <Button
