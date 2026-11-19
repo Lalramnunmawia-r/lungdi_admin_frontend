@@ -4,6 +4,8 @@ import { useState, type DragEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  ChevronDown,
+  ChevronUp,
   GripVertical,
   Loader2,
   Pencil,
@@ -69,6 +71,14 @@ const KEY_PATTERN = /^[a-z][a-z0-9_]{0,49}$/;
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError ? error.message : fallback;
+}
+
+/** True when a drag started on a control (button, switch, input) — not the row itself. */
+function isInteractive(target: EventTarget): boolean {
+  return (
+    target instanceof HTMLElement &&
+    target.closest("button, input, [role=switch], a") !== null
+  );
 }
 
 /** `ids` with `fromId` moved to where `toId` is. */
@@ -524,9 +534,6 @@ export default function ProfileFieldsPage() {
     field: AdminProfileField | null;
     editing: AdminProfileFieldOption | null;
   }>({ open: false, field: null, editing: null });
-  // Which question card is "armed" for dragging — only while its handle is
-  // held, so clicks and text selection elsewhere on the card still work.
-  const [armedField, setArmedField] = useState<string | null>(null);
 
   const { data: fields, isLoading } = useQuery({
     queryKey: QUERY_KEY,
@@ -734,8 +741,9 @@ export default function ProfileFieldsPage() {
           <h1 className="text-xl font-semibold">Profile Questions</h1>
           <p className="text-sm text-muted-foreground">
             The questions and options users see in onboarding and profile edit.
-            Drag <GripVertical className="inline size-3.5 align-text-bottom" /> to
-            change the order — it saves automatically and shows in the app right away.
+            Change the order by dragging a question or option
+            (<GripVertical className="inline size-3.5 align-text-bottom" />) or with the
+            ↑ ↓ arrows — it saves automatically and shows in the app right away.
           </p>
         </div>
         <Button size="sm" onClick={() => setFieldDialog({ open: true, editing: null })}>
@@ -757,33 +765,44 @@ export default function ProfileFieldsPage() {
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               {section.label}
             </h2>
-            {section.fields.map((field) => (
+            {section.fields.map((field, fieldIndex) => {
+              const drag = fieldDrag.itemProps(section.value, field.id);
+              const prevField = section.fields[fieldIndex - 1];
+              const nextField = section.fields[fieldIndex + 1];
+              return (
               <div
                 key={field.id}
-                draggable={armedField === field.id}
-                {...fieldDrag.itemProps(section.value, field.id)}
-                onDragEnd={() => {
-                  fieldDrag.itemProps(section.value, field.id).onDragEnd();
-                  setArmedField(null);
-                }}
+                // The whole card is the drop target; the header row is what
+                // you grab (so option rows inside keep their own drag).
+                onDragOver={drag.onDragOver}
+                onDrop={drag.onDrop}
                 className={cn(
                   "rounded-lg border border-border bg-card transition-opacity",
                   fieldDrag.isDragging(field.id) && "opacity-40",
                   fieldDrag.isOver(field.id) && "ring-2 ring-primary",
                 )}
               >
-                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border p-4">
+                <div
+                  draggable
+                  onDragStart={(e) => {
+                    // Don't hijack clicks/drags on the switch and buttons.
+                    if (isInteractive(e.target)) {
+                      e.preventDefault();
+                      return;
+                    }
+                    drag.onDragStart(e);
+                  }}
+                  onDragEnd={drag.onDragEnd}
+                  className="flex cursor-grab flex-wrap items-start justify-between gap-3 border-b border-border p-4 active:cursor-grabbing"
+                >
                   <div className="flex items-start gap-2">
-                    <button
-                      type="button"
-                      className="mt-0.5 cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing"
+                    <span
+                      className="mt-0.5 text-muted-foreground"
                       title="Drag to reorder"
-                      aria-label={`Drag to reorder ${field.labelEn}`}
-                      onMouseDown={() => setArmedField(field.id)}
-                      onMouseUp={() => setArmedField(null)}
+                      aria-hidden
                     >
                       <GripVertical className="size-4" />
-                    </button>
+                    </span>
                     <div className="space-y-1">
                       <p className="font-medium">
                         {field.labelEn}
@@ -805,6 +824,32 @@ export default function ProfileFieldsPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-7"
+                      disabled={!prevField || reorderFields.isPending}
+                      onClick={() =>
+                        prevField && moveField(section.value, field.id, prevField.id)
+                      }
+                      title="Move up"
+                      aria-label={`Move ${field.labelEn} up`}
+                    >
+                      <ChevronUp className="size-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-7"
+                      disabled={!nextField || reorderFields.isPending}
+                      onClick={() =>
+                        nextField && moveField(section.value, field.id, nextField.id)
+                      }
+                      title="Move down"
+                      aria-label={`Move ${field.labelEn} down`}
+                    >
+                      <ChevronDown className="size-4" />
+                    </Button>
                     <span className="text-xs text-muted-foreground">Active</span>
                     <Switch
                       checked={field.active}
@@ -857,7 +902,10 @@ export default function ProfileFieldsPage() {
                     )}
                     {[...field.options]
                       .sort((a, b) => a.sortOrder - b.sortOrder)
-                      .map((option) => (
+                      .map((option, optionIndex, sortedOptions) => {
+                        const prevOption = sortedOptions[optionIndex - 1];
+                        const nextOption = sortedOptions[optionIndex + 1];
+                        return (
                         <TableRow
                           key={option.id}
                           draggable
@@ -898,6 +946,32 @@ export default function ProfileFieldsPage() {
                                 size="icon"
                                 variant="ghost"
                                 className="size-7"
+                                disabled={!prevOption || reorderOptions.isPending}
+                                onClick={() =>
+                                  prevOption && moveOption(field.id, option.id, prevOption.id)
+                                }
+                                title="Move up"
+                                aria-label={`Move ${option.labelEn} up`}
+                              >
+                                <ChevronUp className="size-3.5" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="size-7"
+                                disabled={!nextOption || reorderOptions.isPending}
+                                onClick={() =>
+                                  nextOption && moveOption(field.id, option.id, nextOption.id)
+                                }
+                                title="Move down"
+                                aria-label={`Move ${option.labelEn} down`}
+                              >
+                                <ChevronDown className="size-3.5" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="size-7"
                                 onClick={() =>
                                   setOptionDialog({ open: true, field, editing: option })
                                 }
@@ -918,7 +992,8 @@ export default function ProfileFieldsPage() {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                   </TableBody>
                 </Table>
                 <div className="border-t border-border p-2">
@@ -932,7 +1007,8 @@ export default function ProfileFieldsPage() {
                   </Button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </section>
         ))}
 
