@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type DragEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { GripVertical, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
 import type {
   AdminProfileField,
   AdminProfileFieldOption,
@@ -63,6 +64,73 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError ? error.message : fallback;
 }
 
+/** `ids` with `fromId` moved to where `toId` is. */
+function moveId(ids: string[], fromId: string, toId: string): string[] {
+  const from = ids.indexOf(fromId);
+  const to = ids.indexOf(toId);
+  if (from === -1 || to === -1 || from === to) return ids;
+  const next = [...ids];
+  next.splice(from, 1);
+  next.splice(to, 0, fromId);
+  return next;
+}
+
+/** Sort `items` to follow `ids`. */
+function orderBy<T extends { id: string }>(items: T[], ids: string[]): T[] {
+  const position = new Map(ids.map((id, index) => [id, index]));
+  return [...items].sort(
+    (a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Drag-and-drop (native HTML5, within one list)
+// ---------------------------------------------------------------------------
+
+/**
+ * Tracks one drag inside one list (a section's questions, or one question's
+ * options). `group` keeps a drag from dropping into a different list.
+ */
+function useDragReorder(onReorder: (group: string, fromId: string, toId: string) => void) {
+  const [dragging, setDragging] = useState<{ group: string; id: string } | null>(null);
+  const [over, setOver] = useState<string | null>(null);
+
+  const itemProps = (group: string, id: string) => ({
+    onDragStart: (e: DragEvent) => {
+      e.stopPropagation();
+      e.dataTransfer.effectAllowed = "move";
+      // Firefox needs data set to start a drag.
+      e.dataTransfer.setData("text/plain", id);
+      setDragging({ group, id });
+    },
+    onDragOver: (e: DragEvent) => {
+      if (!dragging || dragging.group !== group) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "move";
+      if (over !== id) setOver(id);
+    },
+    onDrop: (e: DragEvent) => {
+      if (!dragging || dragging.group !== group) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (dragging.id !== id) onReorder(group, dragging.id, id);
+      setDragging(null);
+      setOver(null);
+    },
+    onDragEnd: () => {
+      setDragging(null);
+      setOver(null);
+    },
+  });
+
+  return {
+    itemProps,
+    isDragging: (id: string) => dragging?.id === id,
+    isOver: (id: string) => over === id && dragging?.id !== id,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Question form
 // ---------------------------------------------------------------------------
@@ -74,7 +142,6 @@ interface FieldForm {
   section: ProfileFieldSection;
   multiSelect: boolean;
   userCanHide: boolean;
-  sortOrder: string;
 }
 
 const EMPTY_FIELD: FieldForm = {
@@ -84,7 +151,6 @@ const EMPTY_FIELD: FieldForm = {
   section: "lifestyle",
   multiSelect: false,
   userCanHide: false,
-  sortOrder: "0",
 };
 
 function FieldDialog({
@@ -116,7 +182,6 @@ function FieldDialog({
             section: editing.section,
             multiSelect: editing.multiSelect,
             userCanHide: editing.userCanHide,
-            sortOrder: String(editing.sortOrder),
           }
         : EMPTY_FIELD,
     );
@@ -179,36 +244,28 @@ function FieldDialog({
               />
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="field-section">Section</Label>
-              <Select
-                value={form.section}
-                onValueChange={(v) => v && set("section", v as ProfileFieldSection)}
-              >
-                <SelectTrigger id="field-section" className="w-full">
-                  <SelectValue>{(v: string) => sectionLabel(v)}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {SECTIONS.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="field-order">Order</Label>
-              <Input
-                id="field-order"
-                type="number"
-                min={0}
-                max={10000}
-                value={form.sortOrder}
-                onChange={(e) => set("sortOrder", e.target.value)}
-              />
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="field-section">Section</Label>
+            <Select
+              value={form.section}
+              onValueChange={(v) => v && set("section", v as ProfileFieldSection)}
+            >
+              <SelectTrigger id="field-section" className="w-full">
+                <SelectValue>{(v: string) => sectionLabel(v)}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {SECTIONS.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!editing && (
+              <p className="text-xs text-muted-foreground">
+                New questions go at the end of the section — drag to move them.
+              </p>
+            )}
           </div>
           <div className="flex items-center justify-between rounded-md border border-border p-3">
             <div>
@@ -261,7 +318,6 @@ function FieldDialog({
 interface OptionForm {
   labelEn: string;
   labelMz: string;
-  sortOrder: string;
 }
 
 function OptionDialog({
@@ -279,11 +335,7 @@ function OptionDialog({
   onClose: () => void;
   onSubmit: (form: OptionForm) => void;
 }) {
-  const [form, setForm] = useState<OptionForm>({
-    labelEn: "",
-    labelMz: "",
-    sortOrder: "0",
-  });
+  const [form, setForm] = useState<OptionForm>({ labelEn: "", labelMz: "" });
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
 
   const target = open ? (editing?.id ?? `new:${field?.id}`) : null;
@@ -291,16 +343,8 @@ function OptionDialog({
     setLoadedFor(target);
     setForm(
       editing
-        ? {
-            labelEn: editing.labelEn,
-            labelMz: editing.labelMz ?? "",
-            sortOrder: String(editing.sortOrder),
-          }
-        : {
-            labelEn: "",
-            labelMz: "",
-            sortOrder: String(field?.options.length ?? 0),
-          },
+        ? { labelEn: editing.labelEn, labelMz: editing.labelMz ?? "" }
+        : { labelEn: "", labelMz: "" },
     );
   }
 
@@ -348,17 +392,11 @@ function OptionDialog({
               />
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="option-order">Order</Label>
-            <Input
-              id="option-order"
-              type="number"
-              min={0}
-              max={10000}
-              value={form.sortOrder}
-              onChange={(e) => setForm((f) => ({ ...f, sortOrder: e.target.value }))}
-            />
-          </div>
+          {!editing && (
+            <p className="text-xs text-muted-foreground">
+              New options go at the end — drag to move them.
+            </p>
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
@@ -378,11 +416,6 @@ function OptionDialog({
 // Page
 // ---------------------------------------------------------------------------
 
-function toOrder(value: string): number {
-  const n = Number.parseInt(value, 10);
-  return Number.isFinite(n) && n >= 0 ? Math.min(n, 10000) : 0;
-}
-
 export default function ProfileFieldsPage() {
   const queryClient = useQueryClient();
   const invalidate = () => queryClient.invalidateQueries({ queryKey: QUERY_KEY });
@@ -396,12 +429,80 @@ export default function ProfileFieldsPage() {
     field: AdminProfileField | null;
     editing: AdminProfileFieldOption | null;
   }>({ open: false, field: null, editing: null });
+  // Which question card is "armed" for dragging — only while its handle is
+  // held, so clicks and text selection elsewhere on the card still work.
+  const [armedField, setArmedField] = useState<string | null>(null);
 
   const { data: fields, isLoading } = useQuery({
     queryKey: QUERY_KEY,
     queryFn: () => api.get<AdminProfileField[]>("/admin/profile-fields"),
   });
 
+  // --- Reordering: update the screen at once, then save; roll back on error.
+  const reorderFields = useMutation({
+    mutationFn: (payload: { section: ProfileFieldSection; ids: string[] }) =>
+      api.put("/admin/profile-fields/reorder", payload),
+    onError: (error) => {
+      toast.error(errorMessage(error, "Couldn't save the order"));
+      void invalidate();
+    },
+  });
+
+  const reorderOptions = useMutation({
+    mutationFn: ({ fieldId, ids }: { fieldId: string; ids: string[] }) =>
+      api.put(`/admin/profile-fields/${fieldId}/options/reorder`, { ids }),
+    onError: (error) => {
+      toast.error(errorMessage(error, "Couldn't save the order"));
+      void invalidate();
+    },
+  });
+
+  function moveField(section: string, fromId: string, toId: string) {
+    const current = queryClient.getQueryData<AdminProfileField[]>(QUERY_KEY) ?? [];
+    const ids = moveId(
+      current.filter((f) => f.section === section).map((f) => f.id),
+      fromId,
+      toId,
+    );
+    queryClient.setQueryData<AdminProfileField[]>(QUERY_KEY, (old) => {
+      if (!old) return old;
+      const position = new Map(ids.map((id, index) => [id, index]));
+      return old.map((f) =>
+        position.has(f.id) ? { ...f, sortOrder: position.get(f.id)! } : f,
+      );
+    });
+    reorderFields.mutate({ section: section as ProfileFieldSection, ids });
+  }
+
+  function moveOption(fieldId: string, fromId: string, toId: string) {
+    const current = queryClient.getQueryData<AdminProfileField[]>(QUERY_KEY) ?? [];
+    const field = current.find((f) => f.id === fieldId);
+    if (!field) return;
+    const ids = moveId(
+      field.options.map((o) => o.id),
+      fromId,
+      toId,
+    );
+    queryClient.setQueryData<AdminProfileField[]>(QUERY_KEY, (old) =>
+      old?.map((f) =>
+        f.id === fieldId
+          ? {
+              ...f,
+              options: orderBy(f.options, ids).map((o, index) => ({
+                ...o,
+                sortOrder: index,
+              })),
+            }
+          : f,
+      ),
+    );
+    reorderOptions.mutate({ fieldId, ids });
+  }
+
+  const fieldDrag = useDragReorder(moveField);
+  const optionDrag = useDragReorder(moveOption);
+
+  // --- Create / edit / delete -------------------------------------------------
   const saveField = useMutation({
     mutationFn: async ({ id, form }: { id: string | null; form: FieldForm }) => {
       const common = {
@@ -409,7 +510,6 @@ export default function ProfileFieldsPage() {
         section: form.section,
         multiSelect: form.multiSelect,
         userCanHide: form.userCanHide,
-        sortOrder: toOrder(form.sortOrder),
       };
       if (id) {
         const payload: UpdateProfileFieldInput = {
@@ -418,6 +518,7 @@ export default function ProfileFieldsPage() {
         };
         return api.patch(`/admin/profile-fields/${id}`, payload);
       }
+      // No sortOrder: the server puts a new question last in its section.
       const payload: CreateProfileFieldInput = {
         ...common,
         key: form.key.trim(),
@@ -459,19 +560,16 @@ export default function ProfileFieldsPage() {
       optionId: string | null;
       form: OptionForm;
     }) => {
-      const base = {
-        labelEn: form.labelEn.trim(),
-        sortOrder: toOrder(form.sortOrder),
-      };
       if (optionId) {
         const payload: ProfileFieldOptionInput = {
-          ...base,
+          labelEn: form.labelEn.trim(),
           labelMz: form.labelMz.trim() || null,
         };
         return api.patch(`/admin/profile-fields/options/${optionId}`, payload);
       }
+      // No sortOrder: the server puts a new option last.
       return api.post(`/admin/profile-fields/${fieldId}/options`, {
-        ...base,
+        labelEn: form.labelEn.trim(),
         labelMz: form.labelMz.trim() || undefined,
       });
     },
@@ -522,7 +620,9 @@ export default function ProfileFieldsPage() {
 
   const bySection = SECTIONS.map((section) => ({
     ...section,
-    fields: (fields ?? []).filter((f) => f.section === section.value),
+    fields: (fields ?? [])
+      .filter((f) => f.section === section.value)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.labelEn.localeCompare(b.labelEn)),
   }));
 
   return (
@@ -532,7 +632,8 @@ export default function ProfileFieldsPage() {
           <h1 className="text-xl font-semibold">Profile Questions</h1>
           <p className="text-sm text-muted-foreground">
             The questions and options users see in onboarding and profile edit.
-            Changes show in the app right away.
+            Drag <GripVertical className="inline size-3.5 align-text-bottom" /> to
+            change the order — it saves automatically and shows in the app right away.
           </p>
         </div>
         <Button size="sm" onClick={() => setFieldDialog({ open: true, editing: null })}>
@@ -557,25 +658,47 @@ export default function ProfileFieldsPage() {
             {section.fields.map((field) => (
               <div
                 key={field.id}
-                className="rounded-lg border border-border bg-card"
+                draggable={armedField === field.id}
+                {...fieldDrag.itemProps(section.value, field.id)}
+                onDragEnd={() => {
+                  fieldDrag.itemProps(section.value, field.id).onDragEnd();
+                  setArmedField(null);
+                }}
+                className={cn(
+                  "rounded-lg border border-border bg-card transition-opacity",
+                  fieldDrag.isDragging(field.id) && "opacity-40",
+                  fieldDrag.isOver(field.id) && "ring-2 ring-primary",
+                )}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border p-4">
-                  <div className="space-y-1">
-                    <p className="font-medium">
-                      {field.labelEn}
-                      {field.labelMz && (
-                        <span className="ml-2 font-normal text-muted-foreground">
-                          · {field.labelMz}
-                        </span>
-                      )}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{field.key}</code>
-                      <Badge variant="secondary">
-                        {field.multiSelect ? "Multiple choice" : "Single choice"}
-                      </Badge>
-                      {field.userCanHide && <Badge variant="outline">User can hide</Badge>}
-                      {!field.active && <Badge variant="destructive">Hidden from app</Badge>}
+                  <div className="flex items-start gap-2">
+                    <button
+                      type="button"
+                      className="mt-0.5 cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing"
+                      title="Drag to reorder"
+                      aria-label={`Drag to reorder ${field.labelEn}`}
+                      onMouseDown={() => setArmedField(field.id)}
+                      onMouseUp={() => setArmedField(null)}
+                    >
+                      <GripVertical className="size-4" />
+                    </button>
+                    <div className="space-y-1">
+                      <p className="font-medium">
+                        {field.labelEn}
+                        {field.labelMz && (
+                          <span className="ml-2 font-normal text-muted-foreground">
+                            · {field.labelMz}
+                          </span>
+                        )}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{field.key}</code>
+                        <Badge variant="secondary">
+                          {field.multiSelect ? "Multiple choice" : "Single choice"}
+                        </Badge>
+                        {field.userCanHide && <Badge variant="outline">User can hide</Badge>}
+                        {!field.active && <Badge variant="destructive">Hidden from app</Badge>}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -613,9 +736,9 @@ export default function ProfileFieldsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-8" />
                       <TableHead>Option (English)</TableHead>
                       <TableHead>Mizo</TableHead>
-                      <TableHead className="w-16">Order</TableHead>
                       <TableHead className="w-16">Active</TableHead>
                       <TableHead className="w-16">Picked</TableHead>
                       <TableHead className="w-20" />
@@ -629,51 +752,63 @@ export default function ProfileFieldsPage() {
                         </TableCell>
                       </TableRow>
                     )}
-                    {field.options.map((option) => (
-                      <TableRow key={option.id}>
-                        <TableCell className="font-medium">{option.labelEn}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {option.labelMz ?? "—"}
-                        </TableCell>
-                        <TableCell className="font-mono tabular-nums">{option.sortOrder}</TableCell>
-                        <TableCell>
-                          <Switch
-                            checked={option.active}
-                            disabled={toggleOption.isPending}
-                            onCheckedChange={(c) =>
-                              toggleOption.mutate({ id: option.id, active: !!c })
-                            }
-                            aria-label={`Toggle ${option.labelEn}`}
-                          />
-                        </TableCell>
-                        <TableCell className="font-mono tabular-nums">{option.userCount}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="size-7"
-                              onClick={() =>
-                                setOptionDialog({ open: true, field, editing: option })
+                    {[...field.options]
+                      .sort((a, b) => a.sortOrder - b.sortOrder)
+                      .map((option) => (
+                        <TableRow
+                          key={option.id}
+                          draggable
+                          {...optionDrag.itemProps(field.id, option.id)}
+                          className={cn(
+                            optionDrag.isDragging(option.id) && "opacity-40",
+                            optionDrag.isOver(option.id) && "bg-primary/10",
+                          )}
+                        >
+                          <TableCell className="cursor-grab text-muted-foreground active:cursor-grabbing">
+                            <GripVertical className="size-4" aria-label="Drag to reorder" />
+                          </TableCell>
+                          <TableCell className="font-medium">{option.labelEn}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {option.labelMz ?? "—"}
+                          </TableCell>
+                          <TableCell>
+                            <Switch
+                              checked={option.active}
+                              disabled={toggleOption.isPending}
+                              onCheckedChange={(c) =>
+                                toggleOption.mutate({ id: option.id, active: !!c })
                               }
-                              title="Edit option"
-                            >
-                              <Pencil className="size-3.5" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="size-7"
-                              disabled={deleteOption.isPending}
-                              onClick={() => confirmDeleteOption(option)}
-                              title="Delete option"
-                            >
-                              <Trash2 className="size-3.5" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                              aria-label={`Toggle ${option.labelEn}`}
+                            />
+                          </TableCell>
+                          <TableCell className="font-mono tabular-nums">{option.userCount}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="size-7"
+                                onClick={() =>
+                                  setOptionDialog({ open: true, field, editing: option })
+                                }
+                                title="Edit option"
+                              >
+                                <Pencil className="size-3.5" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="size-7"
+                                disabled={deleteOption.isPending}
+                                onClick={() => confirmDeleteOption(option)}
+                                title="Delete option"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
                   </TableBody>
                 </Table>
                 <div className="border-t border-border p-2">

@@ -80,7 +80,7 @@ async function tryRefresh(): Promise<boolean> {
 }
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   /** Query params — undefined values are dropped, everything else stringified. An array becomes a repeated key (?status=a&status=b), matching the backend's array-query DTOs. */
   query?: Record<string, string | number | boolean | string[] | undefined>;
@@ -147,6 +147,8 @@ export const api = {
     request<T>(path, { method: "GET", query }),
   post: <T>(path: string, body?: unknown, query?: RequestOptions["query"]) =>
     request<T>(path, { method: "POST", body, query }),
+  put: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: "PUT", body }),
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PATCH", body }),
   delete: <T>(path: string, body?: unknown) =>
