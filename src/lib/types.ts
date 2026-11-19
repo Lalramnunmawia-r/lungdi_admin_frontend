@@ -316,6 +316,9 @@ export interface AdminProfileFieldOption {
   id: string;
   labelEn: string;
   labelMz: string | null;
+  allowsText: boolean;
+  textLabelEn: string | null;
+  textLabelMz: string | null;
   sortOrder: number;
   active: boolean;
   userCount: number;
@@ -329,6 +332,7 @@ export interface AdminProfileField {
   section: ProfileFieldSection;
   multiSelect: boolean;
   userCanHide: boolean;
+  required: boolean;
   sortOrder: number;
   active: boolean;
   options: AdminProfileFieldOption[];
@@ -341,6 +345,7 @@ export interface CreateProfileFieldInput {
   section: ProfileFieldSection;
   multiSelect?: boolean;
   userCanHide?: boolean;
+  required?: boolean;
   sortOrder?: number;
 }
 
@@ -350,6 +355,7 @@ export interface UpdateProfileFieldInput {
   section?: ProfileFieldSection;
   multiSelect?: boolean;
   userCanHide?: boolean;
+  required?: boolean;
   sortOrder?: number;
   active?: boolean;
 }
@@ -357,6 +363,9 @@ export interface UpdateProfileFieldInput {
 export interface ProfileFieldOptionInput {
   labelEn?: string;
   labelMz?: string | null;
+  allowsText?: boolean;
+  textLabelEn?: string | null;
+  textLabelMz?: string | null;
   sortOrder?: number;
   active?: boolean;
 }

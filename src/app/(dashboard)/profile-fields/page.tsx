@@ -3,7 +3,14 @@
 import { useState, type DragEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { GripVertical, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  GripVertical,
+  Loader2,
+  Pencil,
+  PencilLine,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { api, ApiError } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import type {
@@ -142,6 +149,7 @@ interface FieldForm {
   section: ProfileFieldSection;
   multiSelect: boolean;
   userCanHide: boolean;
+  required: boolean;
 }
 
 const EMPTY_FIELD: FieldForm = {
@@ -151,6 +159,7 @@ const EMPTY_FIELD: FieldForm = {
   section: "lifestyle",
   multiSelect: false,
   userCanHide: false,
+  required: false,
 };
 
 function FieldDialog({
@@ -182,6 +191,7 @@ function FieldDialog({
             section: editing.section,
             multiSelect: editing.multiSelect,
             userCanHide: editing.userCanHide,
+            required: editing.required,
           }
         : EMPTY_FIELD,
     );
@@ -293,6 +303,28 @@ function FieldDialog({
               aria-label="User can hide"
             />
           </div>
+          <div className="rounded-md border border-border p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Required</p>
+                <p className="text-xs text-muted-foreground">
+                  Users must answer it to finish onboarding, and can&apos;t clear it later
+                </p>
+              </div>
+              <Switch
+                checked={form.required}
+                onCheckedChange={(c) => set("required", !!c)}
+                aria-label="Required"
+              />
+            </div>
+            {form.required && (
+              <p className="mt-2 text-xs text-amber-600 dark:text-amber-500">
+                Older app versions that don&apos;t show this question will not be able to
+                finish onboarding. Only make it required once the app version that shows
+                it is out and users have updated.
+              </p>
+            )}
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
@@ -318,7 +350,18 @@ function FieldDialog({
 interface OptionForm {
   labelEn: string;
   labelMz: string;
+  allowsText: boolean;
+  textLabelEn: string;
+  textLabelMz: string;
 }
+
+const EMPTY_OPTION: OptionForm = {
+  labelEn: "",
+  labelMz: "",
+  allowsText: false,
+  textLabelEn: "",
+  textLabelMz: "",
+};
 
 function OptionDialog({
   open,
@@ -335,7 +378,7 @@ function OptionDialog({
   onClose: () => void;
   onSubmit: (form: OptionForm) => void;
 }) {
-  const [form, setForm] = useState<OptionForm>({ labelEn: "", labelMz: "" });
+  const [form, setForm] = useState<OptionForm>(EMPTY_OPTION);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
 
   const target = open ? (editing?.id ?? `new:${field?.id}`) : null;
@@ -343,10 +386,18 @@ function OptionDialog({
     setLoadedFor(target);
     setForm(
       editing
-        ? { labelEn: editing.labelEn, labelMz: editing.labelMz ?? "" }
-        : { labelEn: "", labelMz: "" },
+        ? {
+            labelEn: editing.labelEn,
+            labelMz: editing.labelMz ?? "",
+            allowsText: editing.allowsText,
+            textLabelEn: editing.textLabelEn ?? "",
+            textLabelMz: editing.textLabelMz ?? "",
+          }
+        : EMPTY_OPTION,
     );
   }
+  const set = <K extends keyof OptionForm>(key: K, value: OptionForm[K]) =>
+    setForm((f) => ({ ...f, [key]: value }));
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -391,6 +442,50 @@ function OptionDialog({
                 maxLength={100}
               />
             </div>
+          </div>
+          <div className="space-y-3 rounded-md border border-border p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Allow text input</p>
+                <p className="text-xs text-muted-foreground">
+                  Picking this option shows a text box (optional to fill), e.g. PhD →
+                  Speciality
+                </p>
+              </div>
+              <Switch
+                checked={form.allowsText}
+                onCheckedChange={(c) => set("allowsText", !!c)}
+                aria-label="Allow text input"
+              />
+            </div>
+            {form.allowsText && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="option-text-label-en">Text box label (English)</Label>
+                  <Input
+                    id="option-text-label-en"
+                    value={form.textLabelEn}
+                    onChange={(e) => set("textLabelEn", e.target.value)}
+                    placeholder="Speciality"
+                    maxLength={100}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="option-text-label-mz">Text box label (Mizo)</Label>
+                  <Input
+                    id="option-text-label-mz"
+                    value={form.textLabelMz}
+                    onChange={(e) => set("textLabelMz", e.target.value)}
+                    maxLength={100}
+                  />
+                </div>
+              </div>
+            )}
+            {editing?.allowsText && !form.allowsText && (
+              <p className="text-xs text-muted-foreground">
+                Text users already typed is kept; new text won&apos;t be accepted.
+              </p>
+            )}
           </div>
           {!editing && (
             <p className="text-xs text-muted-foreground">
@@ -510,6 +605,7 @@ export default function ProfileFieldsPage() {
         section: form.section,
         multiSelect: form.multiSelect,
         userCanHide: form.userCanHide,
+        required: form.required,
       };
       if (id) {
         const payload: UpdateProfileFieldInput = {
@@ -564,6 +660,9 @@ export default function ProfileFieldsPage() {
         const payload: ProfileFieldOptionInput = {
           labelEn: form.labelEn.trim(),
           labelMz: form.labelMz.trim() || null,
+          allowsText: form.allowsText,
+          textLabelEn: form.textLabelEn.trim() || null,
+          textLabelMz: form.textLabelMz.trim() || null,
         };
         return api.patch(`/admin/profile-fields/options/${optionId}`, payload);
       }
@@ -571,6 +670,9 @@ export default function ProfileFieldsPage() {
       return api.post(`/admin/profile-fields/${fieldId}/options`, {
         labelEn: form.labelEn.trim(),
         labelMz: form.labelMz.trim() || undefined,
+        allowsText: form.allowsText,
+        textLabelEn: form.textLabelEn.trim() || undefined,
+        textLabelMz: form.textLabelMz.trim() || undefined,
       });
     },
     onSuccess: (_data, { optionId }) => {
@@ -696,6 +798,7 @@ export default function ProfileFieldsPage() {
                         <Badge variant="secondary">
                           {field.multiSelect ? "Multiple choice" : "Single choice"}
                         </Badge>
+                        {field.required && <Badge>Required</Badge>}
                         {field.userCanHide && <Badge variant="outline">User can hide</Badge>}
                         {!field.active && <Badge variant="destructive">Hidden from app</Badge>}
                       </div>
@@ -767,7 +870,14 @@ export default function ProfileFieldsPage() {
                           <TableCell className="cursor-grab text-muted-foreground active:cursor-grabbing">
                             <GripVertical className="size-4" aria-label="Drag to reorder" />
                           </TableCell>
-                          <TableCell className="font-medium">{option.labelEn}</TableCell>
+                          <TableCell className="font-medium">
+                            {option.labelEn}
+                            {option.allowsText && (
+                              <Badge variant="outline" className="ml-2">
+                                <PencilLine /> {option.textLabelEn ?? "Text"}
+                              </Badge>
+                            )}
+                          </TableCell>
                           <TableCell className="text-muted-foreground">
                             {option.labelMz ?? "—"}
                           </TableCell>
