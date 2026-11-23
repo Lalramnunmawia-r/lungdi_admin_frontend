@@ -237,6 +237,32 @@ export function UserDrawer({
               </div>
             )}
 
+            {user.exitFeedback.length > 0 && (
+              <div>
+                <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Why they left
+                </p>
+                <div className="space-y-2">
+                  {user.exitFeedback.map((exit) => (
+                    <div key={exit.id} className="rounded-md border border-border p-3 text-sm">
+                      <p className="font-medium">{exit.reasonLabel}</p>
+                      {exit.otherText && (
+                        <p className="mt-1 whitespace-pre-wrap text-muted-foreground">
+                          &ldquo;{exit.otherText}&rdquo;
+                        </p>
+                      )}
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        <span className="capitalize">{exit.action}d</span> ·{" "}
+                        <span className="font-mono">{formatDate(exit.createdAt)}</span>
+                        {exit.accountAgeDays !== null &&
+                          ` · account ${exit.accountAgeDays} day${exit.accountAgeDays === 1 ? "" : "s"} old`}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <UserPayments userId={user.id} />
 
             <Separator />
