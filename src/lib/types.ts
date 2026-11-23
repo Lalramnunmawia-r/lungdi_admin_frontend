@@ -100,6 +100,8 @@ export interface AdminUserDetail {
   interests: string[];
   counts: AdminUserCounts;
   currentSubscription: AdminCurrentSubscription | null;
+  /** Why they deactivated/deleted, newest first (empty if they never did). */
+  exitFeedback: AdminExitFeedback[];
 }
 
 // ---- Moderation ----
@@ -488,4 +490,246 @@ export interface AdminRevenuePoint {
   date: string;
   /** Net revenue that day, minor units. */
   amount: number;
+}
+
+// ---------------------------------------------------------------------------
+// Video calls — GET /admin/calls/* (backend src/admin/admin-calls.*)
+// ---------------------------------------------------------------------------
+
+export type CallState =
+  | "ringing"
+  | "accepted"
+  | "connected"
+  | "ended"
+  | "rejected"
+  | "missed"
+  | "cancelled"
+  | "failed";
+
+export type CallTimeseriesMetric =
+  | "calls"
+  | "connected"
+  | "failed"
+  | "minutes"
+  | "relay_pct"
+  | "avg_rtt"
+  | "turn_gb";
+
+export type CallSignalLevel = "ok" | "info" | "warning" | "critical";
+
+export interface AdminCallSignal {
+  key: string;
+  level: CallSignalLevel;
+  title: string;
+  detail: string;
+}
+
+export interface AdminCallsOverview {
+  rangeDays: number;
+  calls: {
+    attempts: number;
+    answered: number;
+    connected: number;
+    missed: number;
+    rejected: number;
+    cancelled: number;
+    failed: number;
+    busy: number;
+    uniqueCallers: number;
+    liveCalls: number;
+  };
+  rates: {
+    answerRatePct: number | null;
+    connectionSuccessPct: number | null;
+    failureRatePct: number | null;
+  };
+  minutes: {
+    total: number;
+    avgCallSeconds: number | null;
+    avgAnswerSeconds: number | null;
+  };
+  network: {
+    reportedCalls: number;
+    directPct: number | null;
+    relayPct: number | null;
+    avgRttMs: number | null;
+    p95RttMs: number | null;
+    avgPacketLossPct: number | null;
+    avgIceSetupMs: number | null;
+  };
+  turn: {
+    usageSyncEnabled: boolean;
+    monthEgressGb: number;
+    monthIngressGb: number;
+    rangeEgressGb: number;
+    freeTierGb: number;
+    freeTierUsedPct: number;
+    projectedMonthEgressGb: number;
+    projectedOverageGb: number;
+    pricePerGbUsd: number;
+    estimatedMonthCostUsd: number;
+    lastSyncedAt: string | null;
+  };
+  signals: AdminCallSignal[];
+}
+
+export interface AdminCallsPoint {
+  date: string;
+  value: number;
+}
+
+export interface AdminCallsBreakdown {
+  endReasons: { state: CallState; endReason: string | null; count: number }[];
+  connectionTypes: {
+    connectionType: "direct_host" | "direct_srflx" | "relay" | "unknown";
+    networkType: "wifi" | "cellular" | "unknown";
+    count: number;
+  }[];
+  appVersions: {
+    appVersion: string;
+    reports: number;
+    relayPct: number;
+    avgRttMs: number | null;
+    avgPacketLossPct: number | null;
+  }[];
+}
+
+export interface AdminCallTopCaller {
+  userId: string;
+  name: string | null;
+  attempts: number;
+  connected: number;
+  rejectedOrMissed: number;
+  totalSeconds: number;
+}
+
+export interface AdminCall {
+  id: string;
+  callerId: string;
+  callerName: string | null;
+  calleeId: string;
+  calleeName: string | null;
+  mediaType: "video" | "audio";
+  state: CallState;
+  endReason: string | null;
+  createdAt: string;
+  connectedAt: string | null;
+  endedAt: string | null;
+  durationSeconds: number | null;
+  relayed: boolean | null;
+}
+
+export interface AdminCallsListResponse {
+  calls: AdminCall[];
+  nextCursor: string | null;
+}
+
+export interface AdminCallReport {
+  userId: string;
+  connectionType: string;
+  relayProtocol: string | null;
+  networkType: string;
+  avgRttMs: number | null;
+  packetLossPct: number | null;
+  avgBitrateKbps: number | null;
+  avgFrameRate: number | null;
+  freezeCount: number | null;
+  iceSetupMs: number | null;
+  bytesSent: number | null;
+  bytesReceived: number | null;
+  appVersion: string | null;
+  osVersion: string | null;
+}
+
+export interface AdminCallDetail {
+  call: AdminCall;
+  reports: AdminCallReport[];
+}
+
+// ---------------------------------------------------------------------------
+// Leaving reasons — "why are you leaving?" (backend src/admin/admin-exit-reasons.*)
+// ---------------------------------------------------------------------------
+
+export type ExitAction = "deactivate" | "delete";
+
+export interface AdminExitReason {
+  id: string;
+  labelEn: string;
+  labelMz: string | null;
+  forDeactivate: boolean;
+  forDelete: boolean;
+  /** The "Other" option: the app shows a free-text box for it. */
+  allowsText: boolean;
+  sortOrder: number;
+  active: boolean;
+  /** How many exits chose this reason. */
+  usageCount: number;
+}
+
+export interface CreateExitReasonInput {
+  labelEn: string;
+  labelMz?: string;
+  forDeactivate?: boolean;
+  forDelete?: boolean;
+  allowsText?: boolean;
+  sortOrder?: number;
+}
+
+export interface UpdateExitReasonInput {
+  labelEn?: string;
+  /** null or "" clears the Mizo label. */
+  labelMz?: string | null;
+  forDeactivate?: boolean;
+  forDelete?: boolean;
+  allowsText?: boolean;
+  sortOrder?: number;
+  active?: boolean;
+}
+
+export type TenureBucket =
+  | "same_day"
+  | "days_1_7"
+  | "days_8_30"
+  | "days_31_90"
+  | "over_90"
+  | "unknown";
+
+export interface AdminExitBreakdown {
+  rangeDays: number;
+  totals: {
+    exits: number;
+    deactivated: number;
+    deleted: number;
+    withTypedText: number;
+    hadActiveSubscription: number;
+    verified: number;
+    noConnections: number;
+  };
+  byReason: {
+    reasonLabel: string;
+    total: number;
+    deactivate: number;
+    delete: number;
+  }[];
+  byTenure: { bucket: TenureBucket; total: number }[];
+  series: { date: string; value: number }[];
+}
+
+export interface AdminExitFeedback {
+  id: string;
+  userId: string | null;
+  userName: string | null;
+  action: ExitAction;
+  reasonLabel: string;
+  otherText: string | null;
+  accountAgeDays: number | null;
+  hadActiveSubscription: boolean | null;
+  connectionCount: number | null;
+  isVerified: boolean | null;
+  createdAt: string;
+}
+
+export interface AdminExitFeedbackListResponse {
+  feedback: AdminExitFeedback[];
+  nextCursor: string | null;
 }
