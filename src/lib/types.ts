@@ -489,3 +489,157 @@ export interface AdminRevenuePoint {
   /** Net revenue that day, minor units. */
   amount: number;
 }
+
+// ---------------------------------------------------------------------------
+// Video calls — GET /admin/calls/* (backend src/admin/admin-calls.*)
+// ---------------------------------------------------------------------------
+
+export type CallState =
+  | "ringing"
+  | "accepted"
+  | "connected"
+  | "ended"
+  | "rejected"
+  | "missed"
+  | "cancelled"
+  | "failed";
+
+export type CallTimeseriesMetric =
+  | "calls"
+  | "connected"
+  | "failed"
+  | "minutes"
+  | "relay_pct"
+  | "avg_rtt"
+  | "turn_gb";
+
+export type CallSignalLevel = "ok" | "info" | "warning" | "critical";
+
+export interface AdminCallSignal {
+  key: string;
+  level: CallSignalLevel;
+  title: string;
+  detail: string;
+}
+
+export interface AdminCallsOverview {
+  rangeDays: number;
+  calls: {
+    attempts: number;
+    answered: number;
+    connected: number;
+    missed: number;
+    rejected: number;
+    cancelled: number;
+    failed: number;
+    busy: number;
+    uniqueCallers: number;
+    liveCalls: number;
+  };
+  rates: {
+    answerRatePct: number | null;
+    connectionSuccessPct: number | null;
+    failureRatePct: number | null;
+  };
+  minutes: {
+    total: number;
+    avgCallSeconds: number | null;
+    avgAnswerSeconds: number | null;
+  };
+  network: {
+    reportedCalls: number;
+    directPct: number | null;
+    relayPct: number | null;
+    avgRttMs: number | null;
+    p95RttMs: number | null;
+    avgPacketLossPct: number | null;
+    avgIceSetupMs: number | null;
+  };
+  turn: {
+    usageSyncEnabled: boolean;
+    monthEgressGb: number;
+    monthIngressGb: number;
+    rangeEgressGb: number;
+    freeTierGb: number;
+    freeTierUsedPct: number;
+    projectedMonthEgressGb: number;
+    projectedOverageGb: number;
+    pricePerGbUsd: number;
+    estimatedMonthCostUsd: number;
+    lastSyncedAt: string | null;
+  };
+  signals: AdminCallSignal[];
+}
+
+export interface AdminCallsPoint {
+  date: string;
+  value: number;
+}
+
+export interface AdminCallsBreakdown {
+  endReasons: { state: CallState; endReason: string | null; count: number }[];
+  connectionTypes: {
+    connectionType: "direct_host" | "direct_srflx" | "relay" | "unknown";
+    networkType: "wifi" | "cellular" | "unknown";
+    count: number;
+  }[];
+  appVersions: {
+    appVersion: string;
+    reports: number;
+    relayPct: number;
+    avgRttMs: number | null;
+    avgPacketLossPct: number | null;
+  }[];
+}
+
+export interface AdminCallTopCaller {
+  userId: string;
+  name: string | null;
+  attempts: number;
+  connected: number;
+  rejectedOrMissed: number;
+  totalSeconds: number;
+}
+
+export interface AdminCall {
+  id: string;
+  callerId: string;
+  callerName: string | null;
+  calleeId: string;
+  calleeName: string | null;
+  mediaType: "video" | "audio";
+  state: CallState;
+  endReason: string | null;
+  createdAt: string;
+  connectedAt: string | null;
+  endedAt: string | null;
+  durationSeconds: number | null;
+  relayed: boolean | null;
+}
+
+export interface AdminCallsListResponse {
+  calls: AdminCall[];
+  nextCursor: string | null;
+}
+
+export interface AdminCallReport {
+  userId: string;
+  connectionType: string;
+  relayProtocol: string | null;
+  networkType: string;
+  avgRttMs: number | null;
+  packetLossPct: number | null;
+  avgBitrateKbps: number | null;
+  avgFrameRate: number | null;
+  freezeCount: number | null;
+  iceSetupMs: number | null;
+  bytesSent: number | null;
+  bytesReceived: number | null;
+  appVersion: string | null;
+  osVersion: string | null;
+}
+
+export interface AdminCallDetail {
+  call: AdminCall;
+  reports: AdminCallReport[];
+}
