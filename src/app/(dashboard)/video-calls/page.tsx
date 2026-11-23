@@ -17,6 +17,7 @@ import type {
 } from "@/lib/types";
 import { Stat, StatRowGroup } from "@/components/stat-row";
 import { TimeseriesChart } from "@/components/dashboard/timeseries-chart";
+import { Panel, ShareBars } from "@/components/dashboard/panel";
 import {
   Table,
   TableBody,
@@ -101,25 +102,6 @@ function formatSeconds(s: number | null): string {
   return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
 }
 
-function Section({ title, action, children, className }: {
-  title: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={cn("rounded-lg border border-border bg-card p-4", className)}>
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-          {title}
-        </h2>
-        {action}
-      </div>
-      {children}
-    </div>
-  );
-}
-
 function StateLabel({ state, endReason }: { state: CallState; endReason: string | null }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-sm">
@@ -132,43 +114,12 @@ function StateLabel({ state, endReason }: { state: CallState; endReason: string 
   );
 }
 
-/** Horizontal bar list — shares of a whole, one hue, value labelled at the end. */
-function ShareBars({ rows }: { rows: { label: string; value: number }[] }) {
-  const total = rows.reduce((sum, r) => sum + r.value, 0);
-  if (total === 0) {
-    return <p className="text-sm text-muted-foreground">No data in this range yet.</p>;
-  }
-  return (
-    <div className="space-y-2">
-      {rows.map((row) => {
-        const share = (100 * row.value) / total;
-        return (
-          <div key={row.label}>
-            <div className="mb-1 flex justify-between text-xs">
-              <span className="text-foreground">{row.label}</span>
-              <span className="font-mono tabular-nums text-muted-foreground">
-                {row.value.toLocaleString()} · {Math.round(share)}%
-              </span>
-            </div>
-            <div className="h-1.5 rounded-full bg-muted">
-              <div
-                className="h-1.5 rounded-full"
-                style={{ width: `${share}%`, background: "var(--chart-1)" }}
-              />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function TurnUsageCard({ turn }: { turn: AdminCallsOverview["turn"] }) {
   const projectedPct =
     turn.freeTierGb > 0 ? (100 * turn.projectedMonthEgressGb) / turn.freeTierGb : 0;
   const danger = projectedPct >= 80;
   return (
-    <Section title="Cloudflare TURN — this month">
+    <Panel title="Cloudflare TURN — this month">
       {!turn.usageSyncEnabled ? (
         <p className="text-sm text-muted-foreground">
           Usage sync is not configured. Set <code>CLOUDFLARE_ACCOUNT_ID</code> and{" "}
@@ -218,7 +169,7 @@ function TurnUsageCard({ turn }: { turn: AdminCallsOverview["turn"] }) {
           </p>
         </div>
       )}
-    </Section>
+    </Panel>
   );
 }
 
@@ -403,7 +354,7 @@ export default function VideoCallsPage() {
       </StatRowGroup>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Section title="Scaling signals" className="lg:col-span-2">
+        <Panel title="Scaling signals" className="lg:col-span-2">
           {!o ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : (
@@ -425,17 +376,17 @@ export default function VideoCallsPage() {
               ))}
             </ul>
           )}
-        </Section>
+        </Panel>
         {o ? (
           <TurnUsageCard turn={o.turn} />
         ) : (
-          <Section title="Cloudflare TURN — this month">
+          <Panel title="Cloudflare TURN — this month">
             <p className="text-sm text-muted-foreground">Loading…</p>
-          </Section>
+          </Panel>
         )}
       </div>
 
-      <Section
+      <Panel
         title={`${metricOption.label} — ${RANGE_OPTIONS.find((r) => r.value === rangeDays)?.label.toLowerCase()}`}
         action={
           <Select value={metric} onValueChange={(v) => v && setMetric(v as CallTimeseriesMetric)}>
@@ -463,10 +414,10 @@ export default function VideoCallsPage() {
             Loading…
           </div>
         )}
-      </Section>
+      </Panel>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Section title="How calls connected">
+        <Panel title="How calls connected">
           <ShareBars rows={connectionMix} />
           {relayByNetwork.length > 0 && (
             <p className="mt-3 text-xs text-muted-foreground">
@@ -476,16 +427,16 @@ export default function VideoCallsPage() {
                 .join(" · ")}
             </p>
           )}
-        </Section>
-        <Section title="How calls ended">
+        </Panel>
+        <Panel title="How calls ended">
           <ShareBars
             rows={(breakdown?.endReasons ?? []).map((r) => ({
               label: `${r.state}${r.endReason && r.endReason !== r.state ? ` · ${r.endReason.replace(/_/g, " ")}` : ""}`,
               value: r.count,
             }))}
           />
-        </Section>
-        <Section title="Quality by app version">
+        </Panel>
+        <Panel title="Quality by app version">
           {breakdown && breakdown.appVersions.length > 0 ? (
             <Table>
               <TableHeader>
@@ -516,10 +467,10 @@ export default function VideoCallsPage() {
           ) : (
             <p className="text-sm text-muted-foreground">No quality reports in this range yet.</p>
           )}
-        </Section>
+        </Panel>
       </div>
 
-      <Section title="Top callers (abuse & cost check)">
+      <Panel title="Top callers (abuse & cost check)">
         <Table>
           <TableHeader>
             <TableRow>
@@ -558,7 +509,7 @@ export default function VideoCallsPage() {
             ))}
           </TableBody>
         </Table>
-      </Section>
+      </Panel>
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">

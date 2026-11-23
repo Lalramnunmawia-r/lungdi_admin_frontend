@@ -14,6 +14,7 @@ const NAV: { href: string; label: string; badge?: boolean }[] = [
   { href: "/plans", label: "Plans" },
   { href: "/payments", label: "Payments" },
   { href: "/video-calls", label: "Video Calls" },
+  { href: "/leaving-reasons", label: "Leaving Reasons" },
   { href: "/profile-fields", label: "Profile Questions" },
   { href: "/interest-categories", label: "Interest Categories" },
   { href: "/interests", label: "Interests" },

@@ -100,6 +100,8 @@ export interface AdminUserDetail {
   interests: string[];
   counts: AdminUserCounts;
   currentSubscription: AdminCurrentSubscription | null;
+  /** Why they deactivated/deleted, newest first (empty if they never did). */
+  exitFeedback: AdminExitFeedback[];
 }
 
 // ---- Moderation ----
@@ -642,4 +644,92 @@ export interface AdminCallReport {
 export interface AdminCallDetail {
   call: AdminCall;
   reports: AdminCallReport[];
+}
+
+// ---------------------------------------------------------------------------
+// Leaving reasons — "why are you leaving?" (backend src/admin/admin-exit-reasons.*)
+// ---------------------------------------------------------------------------
+
+export type ExitAction = "deactivate" | "delete";
+
+export interface AdminExitReason {
+  id: string;
+  labelEn: string;
+  labelMz: string | null;
+  forDeactivate: boolean;
+  forDelete: boolean;
+  /** The "Other" option: the app shows a free-text box for it. */
+  allowsText: boolean;
+  sortOrder: number;
+  active: boolean;
+  /** How many exits chose this reason. */
+  usageCount: number;
+}
+
+export interface CreateExitReasonInput {
+  labelEn: string;
+  labelMz?: string;
+  forDeactivate?: boolean;
+  forDelete?: boolean;
+  allowsText?: boolean;
+  sortOrder?: number;
+}
+
+export interface UpdateExitReasonInput {
+  labelEn?: string;
+  /** null or "" clears the Mizo label. */
+  labelMz?: string | null;
+  forDeactivate?: boolean;
+  forDelete?: boolean;
+  allowsText?: boolean;
+  sortOrder?: number;
+  active?: boolean;
+}
+
+export type TenureBucket =
+  | "same_day"
+  | "days_1_7"
+  | "days_8_30"
+  | "days_31_90"
+  | "over_90"
+  | "unknown";
+
+export interface AdminExitBreakdown {
+  rangeDays: number;
+  totals: {
+    exits: number;
+    deactivated: number;
+    deleted: number;
+    withTypedText: number;
+    hadActiveSubscription: number;
+    verified: number;
+    noConnections: number;
+  };
+  byReason: {
+    reasonLabel: string;
+    total: number;
+    deactivate: number;
+    delete: number;
+  }[];
+  byTenure: { bucket: TenureBucket; total: number }[];
+  series: { date: string; value: number }[];
+}
+
+export interface AdminExitFeedback {
+  id: string;
+  userId: string | null;
+  userName: string | null;
+  action: ExitAction;
+  reasonLabel: string;
+  otherText: string | null;
+  accountAgeDays: number | null;
+  hadActiveSubscription: boolean | null;
+  connectionCount: number | null;
+  isVerified: boolean | null;
+  createdAt: string;
+}
+
+export interface AdminExitFeedbackListResponse {
+  feedback: AdminExitFeedback[];
+  nextCursor: string | null;
 }
