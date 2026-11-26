@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Ban, Loader2, LogOut, ShieldCheck, Trash2, UserCheck, UserX } from "lucide-react";
+import { Ban, Gift, Loader2, LogOut, ShieldCheck, Trash2, UserCheck, UserX } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -22,6 +22,7 @@ import type { AdminUserDetail } from "@/lib/types";
 import { formatDate } from "@/lib/format";
 import { Stat, StatRowGroup } from "@/components/stat-row";
 import { SuspendBanDialog } from "./suspend-ban-dialog";
+import { GrantSubscriptionDialog } from "./grant-subscription-dialog";
 import { UserPayments } from "./user-payments";
 
 function reasonPrompt(actionLabel: string): string | null {
@@ -38,6 +39,7 @@ export function UserDrawer({
   onOpenChange: (open: boolean) => void;
 }) {
   const [dialogAction, setDialogAction] = useState<"suspend" | "ban" | null>(null);
+  const [grantOpen, setGrantOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: user, isLoading } = useQuery({
@@ -219,23 +221,34 @@ export function UserDrawer({
               </StatRowGroup>
             </div>
 
-            {user.currentSubscription && (
-              <div>
-                <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                   Subscription
                 </p>
+                <Button size="sm" variant="outline" onClick={() => setGrantOpen(true)}>
+                  <Gift className="size-4" />
+                  Grant subscription
+                </Button>
+              </div>
+              {user.currentSubscription ? (
                 <div className="rounded-md border border-border p-3 text-sm">
                   <p className="font-medium">{user.currentSubscription.planName}</p>
                   <p className="text-xs text-muted-foreground">
-                    {user.currentSubscription.status} · {user.currentSubscription.paymentProvider} ·
-                    expires{" "}
+                    {user.currentSubscription.status} ·{" "}
+                    {user.currentSubscription.paymentProvider === "admin"
+                      ? "Admin grant"
+                      : user.currentSubscription.paymentProvider}{" "}
+                    · expires{" "}
                     <span className="font-mono">
                       {formatDate(user.currentSubscription.expiryDate)}
                     </span>
                   </p>
                 </div>
-              </div>
-            )}
+              ) : (
+                <p className="text-xs text-muted-foreground">No subscription.</p>
+              )}
+            </div>
 
             {user.exitFeedback.length > 0 && (
               <div>
@@ -340,6 +353,15 @@ export function UserDrawer({
           action={dialogAction}
           onOpenChange={(open) => !open && setDialogAction(null)}
           onDone={invalidate}
+        />
+      )}
+      {user && (
+        <GrantSubscriptionDialog
+          userId={user.id}
+          userName={user.name}
+          open={grantOpen}
+          currentSubscription={user.currentSubscription}
+          onOpenChange={setGrantOpen}
         />
       )}
     </Sheet>
